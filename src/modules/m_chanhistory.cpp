@@ -159,6 +159,10 @@ class ModuleChanHistory : public Module
 		HistoryList* list = m.ext.get(memb->chan);
 		if (!list)
 			return;
+
+		if(memb->user->IsModeSet('B'))
+			return;
+
 		time_t mintime = 0;
 		if (list->maxtime)
 			mintime = ServerInstance->Time() - list->maxtime;
