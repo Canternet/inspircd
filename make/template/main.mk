@@ -50,7 +50,7 @@ INSTMODE_DIR = 0755
 INSTMODE_BIN = 0755
 INSTMODE_LIB = 0644
 
-@IFEQ $(CC) icc
+@IFEQ $(CC) icpc
   CXXFLAGS += -Wshadow
 @ELSE
   CXXFLAGS += -pedantic -Woverloaded-virtual -Wshadow -Wformat=2 -Wmissing-format-attribute -Wall
@@ -91,7 +91,7 @@ INSTMODE_LIB = 0644
 DBGOK=0
 @IFEQ $(D) 0
   CXXFLAGS += -O2
-@IFEQ $(CC) gcc
+@IFEQ $(CC) g++
     CXXFLAGS += -g1
 @ENDIF
   HEADER = std-header
@@ -125,6 +125,7 @@ CXXFLAGS += -Iinclude
   @BSD_ONLY MAKE += -s
   RUNCC = perl $(SOURCEPATH)/make/run-cc.pl $(CC)
   RUNLD = perl $(SOURCEPATH)/make/run-cc.pl $(CC)
+  VERBOSE =
 @ENDIF
 
 @IFDEF PURE_STATIC

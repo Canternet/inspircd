@@ -163,9 +163,6 @@ class CommandWatch : public Command
 			/* Yup, is on my list */
 			watchlist::iterator n = wl->find(nick);
 
-			if (!wl)
-				return CMD_FAILURE;
-
 			if (n != wl->end())
 			{
 				if (!n->second.empty())
@@ -214,7 +211,7 @@ class CommandWatch : public Command
 			ext.set(user, wl);
 		}
 
-		if (wl->size() == MAX_WATCH)
+		if (wl->size() >= MAX_WATCH)
 		{
 			user->WriteNumeric(512, "%s %s :Too many WATCH entries", user->nick.c_str(), nick);
 			return CMD_FAILURE;
@@ -238,7 +235,7 @@ class CommandWatch : public Command
 			}
 
 			User* target = ServerInstance->FindNick(nick);
-			if (target)
+			if ((target) && (target->registered == REG_ALL))
 			{
 				(*wl)[nick] = std::string(target->ident).append(" ").append(target->dhost).append(" ").append(ConvToStr(target->age));
 				user->WriteNumeric(604, "%s %s %s :is online",user->nick.c_str(), nick, (*wl)[nick].c_str());
@@ -316,10 +313,10 @@ class CommandWatch : public Command
 					{
 						for (watchlist::iterator q = wl->begin(); q != wl->end(); q++)
 						{
-							if (!q->second.empty())
+							User* targ = ServerInstance->FindNick(q->first.c_str());
+							if (targ && !q->second.empty())
 							{
 								user->WriteNumeric(604, "%s %s %s :is online", user->nick.c_str(), q->first.c_str(), q->second.c_str());
-								User *targ = ServerInstance->FindNick(q->first.c_str());
 								if (IS_AWAY(targ))
 								{
 									user->WriteNumeric(609, "%s %s %s %s %lu :is away", user->nick.c_str(), targ->nick.c_str(), targ->ident.c_str(), targ->dhost.c_str(), (unsigned long) targ->awaytime);
@@ -420,7 +417,7 @@ class Modulewatch : public Module
 		{
 			for (std::deque<User*>::iterator n = x->second.begin(); n != x->second.end(); n++)
 			{
-				(*n)->WriteNumeric(inum, numeric);
+				(*n)->WriteNumeric(inum, (*n)->nick + " " + numeric);
 			}
 		}
 

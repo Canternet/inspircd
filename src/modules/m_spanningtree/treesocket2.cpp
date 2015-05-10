@@ -155,13 +155,13 @@ void TreeSocket::ProcessLine(std::string &line)
 					time_t delta = them - ServerInstance->Time();
 					if ((delta < -600) || (delta > 600))
 					{
-						ServerInstance->SNO->WriteGlobalSno('l',"\2ERROR\2: Your clocks are out by %d seconds (this is more than five minutes). Link aborted, \2PLEASE SYNC YOUR CLOCKS!\2",abs((long)delta));
-						SendError("Your clocks are out by "+ConvToStr(abs((long)delta))+" seconds (this is more than five minutes). Link aborted, PLEASE SYNC YOUR CLOCKS!");
+						ServerInstance->SNO->WriteGlobalSno('l',"\2ERROR\2: Your clocks are out by %ld seconds (this is more than five minutes). Link aborted, \2PLEASE SYNC YOUR CLOCKS!\2",labs((long)delta));
+						SendError("Your clocks are out by "+ConvToStr(labs((long)delta))+" seconds (this is more than five minutes). Link aborted, PLEASE SYNC YOUR CLOCKS!");
 						return;
 					}
 					else if ((delta < -30) || (delta > 30))
 					{
-						ServerInstance->SNO->WriteGlobalSno('l',"\2WARNING\2: Your clocks are out by %d seconds. Please consider synching your clocks.", abs((long)delta));
+						ServerInstance->SNO->WriteGlobalSno('l',"\2WARNING\2: Your clocks are out by %ld seconds. Please consider synching your clocks.", labs((long)delta));
 					}
 				}
 
@@ -445,23 +445,23 @@ void TreeSocket::ProcessConnectedLine(std::string& prefix, std::string& command,
 		 * On nick messages, check that the nick doesnt already exist here.
 		 * If it does, perform collision logic.
 		 */
+		bool callfnc = true;
 		User* x = ServerInstance->FindNickOnly(params[0]);
-		if ((x) && (x != who))
+		if ((x) && (x != who) && (x->registered == REG_ALL))
 		{
 			int collideret = 0;
 			/* x is local, who is remote */
 			collideret = this->DoCollision(x, who->age, who->ident, who->GetIPString(), who->uuid);
 			if (collideret != 1)
 			{
-				/*
-				 * Remote client lost, or both lost, parsing or passing on this
-				 * nickchange would be pointless, as the incoming client's server will
-				 * soon recieve SVSNICK to change its nick to its UID. :) -- w00t
-				 */
-				return;
+				// Remote client lost, or both lost, rewrite this nick change as a change to uuid before
+				// forwarding and don't call ForceNickChange() because DoCollision() has done it already
+				params[0] = who->uuid;
+				callfnc = false;
 			}
 		}
-		who->ForceNickChange(params[0].c_str());
+		if (callfnc)
+			who->ForceNickChange(params[0].c_str());
 		Utils->RouteCommand(route_back_again, command, params, who);
 	}
 	else

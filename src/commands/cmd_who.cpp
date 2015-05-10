@@ -141,7 +141,7 @@ bool CommandWho::whomatch(User* cuser, User* user, const char* matchtext)
 			long seconds = ServerInstance->Duration(matchtext);
 
 			// Okay, so time matching, we want all users connected `seconds' ago
-			if (user->age >= ServerInstance->Time() - seconds)
+			if (user->signon >= ServerInstance->Time() - seconds)
 				match = true;
 		}
 
@@ -368,7 +368,7 @@ CmdResult CommandWho::Handle (const std::vector<std::string>& parameters, User *
 				{
 					if (!user->SharesChannelWith(oper))
 					{
-						if (usingwildcards && (!oper->IsModeSet('i')) && (!user->HasPrivPermission("users/auspex")))
+						if (usingwildcards && (oper->IsModeSet('i')) && (!user->HasPrivPermission("users/auspex")))
 							continue;
 					}
 

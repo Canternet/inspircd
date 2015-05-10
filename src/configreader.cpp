@@ -35,6 +35,7 @@
 #endif
 
 ServerConfig::ServerConfig()
+	: NoSnoticeStack(false)
 {
 	WhoWasGroupSize = WhoWasMaxGroups = WhoWasMaxKeep = 0;
 	RawLog = NoUserDns = HideBans = HideSplits = UndernetMsgPrefix = false;
@@ -48,6 +49,14 @@ ServerConfig::ServerConfig()
 	OperMaxChans = 30;
 	c_ipv4_range = 32;
 	c_ipv6_range = 128;
+
+	std::vector<KeyVal>* items;
+	EmptyTag = ConfigTag::create("empty", "<auto>", 0, items);
+}
+
+ServerConfig::~ServerConfig()
+{
+	delete EmptyTag;
 }
 
 void ServerConfig::Update005()
@@ -721,7 +730,7 @@ void ServerConfig::Apply(ServerConfig* old, const std::string &useruid)
 	if (valid)
 		ServerInstance->WritePID(this->PID);
 
-	if (old)
+	if (old && valid)
 	{
 		// On first run, ports are bound later on
 		FailedPortList pl;
@@ -743,7 +752,10 @@ void ServerConfig::Apply(ServerConfig* old, const std::string &useruid)
 	User* user = useruid.empty() ? NULL : ServerInstance->FindNick(useruid);
 
 	if (!valid)
+	{
 		ServerInstance->Logs->Log("CONFIG",DEFAULT, "There were errors in your configuration file:");
+		Classes.clear();
+	}
 
 	while (errstr.good())
 	{
@@ -885,7 +897,7 @@ ConfigTag* ServerConfig::ConfValue(const std::string &tag)
 {
 	ConfigTagList found = config_data.equal_range(tag);
 	if (found.first == found.second)
-		return NULL;
+		return EmptyTag;
 	ConfigTag* rv = found.first->second;
 	found.first++;
 	if (found.first != found.second)
@@ -951,6 +963,7 @@ void ConfigReaderThread::Finish()
 		 * XXX: The order of these is IMPORTANT, do not reorder them without testing
 		 * thoroughly!!!
 		 */
+		ServerInstance->Users->RehashCloneCounts();
 		ServerInstance->XLines->CheckELines();
 		ServerInstance->XLines->ApplyLines();
 		ServerInstance->Res->Rehash();

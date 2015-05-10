@@ -160,7 +160,7 @@ class RequestTimeout : public Timer
 	}
 };
 
-CachedQuery::CachedQuery(const std::string &res, unsigned int ttl) : data(res)
+CachedQuery::CachedQuery(const std::string &res, QueryType qt, unsigned int ttl) : data(res), type(qt)
 {
 	expires = ServerInstance->Time() + ttl;
 }
@@ -677,19 +677,13 @@ DNSResult DNS::GetResult()
 
 			case DNS_QUERY_AAAA:
 			{
-				inet_ntop(AF_INET6, data.first, formatted, sizeof(formatted));
-				char* c = strstr(formatted,":0:");
-				if (c != NULL)
+				if (!inet_ntop(AF_INET6, data.first, formatted, sizeof(formatted)))
 				{
-					memmove(c+1,c+2,strlen(c+2) + 1);
-					c += 2;
-					while (memcmp(c,"0:",2) == 0)
-						memmove(c,c+2,strlen(c+2) + 1);
-					if (memcmp(c,"0",2) == 0)
-						*c = 0;
-					if (memcmp(formatted,"0::",3) == 0)
-						memmove(formatted,formatted + 1, strlen(formatted + 1) + 1);
+					std::string ro = req->orig;
+					delete req;
+					return DNSResult(this_id | ERROR_MASK, "inet_ntop() failed", 0, ro);
 				}
+
 				resultstr = formatted;
 
 				/* Special case. Sending ::1 around between servers
@@ -706,8 +700,16 @@ DNSResult DNS::GetResult()
 				/* Identical handling to PTR */
 
 			case DNS_QUERY_PTR:
+			{
 				/* Reverse lookups just come back as char* */
 				resultstr = std::string((const char*)data.first);
+				if (resultstr.find_first_not_of("0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ.-") != std::string::npos)
+				{
+					std::string ro = req->orig;
+					delete req;
+					return DNSResult(this_id | ERROR_MASK, "Invalid char(s) in reply", 0, ro);
+				}
+			}
 			break;
 
 			default:
@@ -716,8 +718,9 @@ DNSResult DNS::GetResult()
 
 		/* Build the reply with the id and hostname/ip in it */
 		std::string ro = req->orig;
+		DNSResult result = DNSResult(this_id,resultstr,ttl,ro,req->type);
 		delete req;
-		return DNSResult(this_id,resultstr,ttl,ro);
+		return result;
 	}
 }
 
@@ -945,11 +948,12 @@ Resolver::Resolver(const std::string &source, QueryType qt, bool &cached, Module
 		{
 			ServerInstance->Res->DelCache(source);
 		}
-		else
+		else if (CQ->type == qt)
 		{
 			cached = true;
 			return;
 		}
+		CQ = NULL;
 	}
 
 	switch (querytype)
@@ -1054,7 +1058,7 @@ void DNS::HandleEvent(EventType, int)
 					ServerInstance->stats->statsDnsGood++;
 
 				if (!this->GetCache(res.original.c_str()))
-					this->cache->insert(std::make_pair(res.original.c_str(), CachedQuery(res.result, res.ttl)));
+					this->cache->insert(std::make_pair(res.original.c_str(), CachedQuery(res.result, res.type, res.ttl)));
 
 				Classes[res.id]->OnLookupComplete(res.result, res.ttl, false);
 				delete Classes[res.id];

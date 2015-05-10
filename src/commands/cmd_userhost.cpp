@@ -30,8 +30,8 @@ class CommandUserhost : public Command
  public:
 	/** Constructor for userhost.
 	 */
-	CommandUserhost ( Module* parent) : Command(parent,"USERHOST", 1, 5) {
-		syntax = "<nick> {<nick>}";
+	CommandUserhost ( Module* parent) : Command(parent,"USERHOST", 1) {
+		syntax = "<nick> [<nick> ...]";
 	}
 	/** Handle command.
 	 * @param parameters The parameters to the comamnd
@@ -46,7 +46,12 @@ CmdResult CommandUserhost::Handle (const std::vector<std::string>& parameters, U
 {
 	std::string retbuf = "302 " + user->nick + " :";
 
-	for (unsigned int i = 0; i < parameters.size(); i++)
+	unsigned int max = parameters.size();
+	if (max > 5)
+		max = 5;
+
+	bool has_privs = user->HasPrivPermission("users/auspex");
+	for (unsigned int i = 0; i < max; i++)
 	{
 		User *u = ServerInstance->FindNickOnly(parameters[i]);
 
@@ -55,7 +60,12 @@ CmdResult CommandUserhost::Handle (const std::vector<std::string>& parameters, U
 			retbuf = retbuf + u->nick;
 
 			if (IS_OPER(u))
-				retbuf = retbuf + "*";
+			{
+				// XXX: +H hidden opers must not be shown as opers
+				ModeHandler* mh = ServerInstance->Modes->FindMode('H', MODETYPE_USER);
+				if ((u == user) || (has_privs) || (!mh) || (!u->IsModeSet('H')) || (mh->name != "hideoper"))
+					retbuf += '*';
+			}
 
 			retbuf = retbuf + "=";
 
@@ -66,7 +76,7 @@ CmdResult CommandUserhost::Handle (const std::vector<std::string>& parameters, U
 
 			retbuf = retbuf + u->ident + "@";
 
-			if (user->HasPrivPermission("users/auspex"))
+			if (has_privs)
 			{
 				retbuf = retbuf + u->host;
 			}

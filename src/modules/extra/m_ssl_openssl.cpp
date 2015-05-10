@@ -36,13 +36,8 @@
 #include "ssl.h"
 
 #ifdef _WIN32
-# pragma comment(lib, "libcrypto.lib")
-# pragma comment(lib, "libssl.lib")
-# pragma comment(lib, "user32.lib")
-# pragma comment(lib, "advapi32.lib")
-# pragma comment(lib, "libgcc.lib")
-# pragma comment(lib, "libmingwex.lib")
-# pragma comment(lib, "gdi32.lib")
+# pragma comment(lib, "ssleay32.lib")
+# pragma comment(lib, "libeay32.lib")
 # undef MAX_DESCRIPTORS
 # define MAX_DESCRIPTORS 10000
 #endif
@@ -56,9 +51,15 @@
 /* $NoPedantic */
 
 
+class ModuleSSLOpenSSL;
+
 enum issl_status { ISSL_NONE, ISSL_HANDSHAKING, ISSL_OPEN };
 
 static bool SelfSigned = false;
+
+#ifdef INSPIRCD_OPENSSL_ENABLE_RENEGO_DETECTION
+static ModuleSSLOpenSSL* opensslmod = NULL;
+#endif
 
 char* get_error()
 {
@@ -80,6 +81,8 @@ public:
 	bool data_to_write;
 
 	issl_session()
+		: sess(NULL)
+		, status(ISSL_NONE)
 	{
 		outbound = false;
 		data_to_write = false;
@@ -107,14 +110,109 @@ class ModuleSSLOpenSSL : public Module
 	SSL_CTX* ctx;
 	SSL_CTX* clictx;
 
+	long ctx_options;
+	long clictx_options;
+
 	std::string sslports;
 	bool use_sha;
 
 	ServiceProvider iohook;
+
+	static void SetContextOptions(SSL_CTX* ctx, long defoptions, const std::string& ctxname, ConfigTag* tag)
+	{
+		long setoptions = tag->getInt(ctxname + "setoptions");
+		// User-friendly config options for setting context options
+#ifdef SSL_OP_CIPHER_SERVER_PREFERENCE
+		if (tag->getBool("cipherserverpref"))
+			setoptions |= SSL_OP_CIPHER_SERVER_PREFERENCE;
+#endif
+#ifdef SSL_OP_NO_COMPRESSION
+		if (!tag->getBool("compression", true))
+			setoptions |= SSL_OP_NO_COMPRESSION;
+#endif
+		if (!tag->getBool("sslv3", true))
+			setoptions |= SSL_OP_NO_SSLv3;
+		if (!tag->getBool("tlsv1", true))
+			setoptions |= SSL_OP_NO_TLSv1;
+
+		long clearoptions = tag->getInt(ctxname + "clearoptions");
+		ServerInstance->Logs->Log("m_ssl_openssl", DEBUG, "Setting OpenSSL %s context options, default: %ld set: %ld clear: %ld", ctxname.c_str(), defoptions, setoptions, clearoptions);
+
+		// Clear everything
+		SSL_CTX_clear_options(ctx, SSL_CTX_get_options(ctx));
+
+		// Set the default options and what is in the conf
+		SSL_CTX_set_options(ctx, defoptions | setoptions);
+		long final = SSL_CTX_clear_options(ctx, clearoptions);
+		ServerInstance->Logs->Log("m_ssl_openssl", DEFAULT, "OpenSSL %s context options: %ld", ctxname.c_str(), final);
+	}
+
+#ifdef INSPIRCD_OPENSSL_ENABLE_ECDH
+	void SetupECDH(ConfigTag* tag)
+	{
+		std::string curvename = tag->getString("ecdhcurve", "prime256v1");
+		if (curvename.empty())
+			return;
+
+		int nid = OBJ_sn2nid(curvename.c_str());
+		if (nid == 0)
+		{
+			ServerInstance->Logs->Log("m_ssl_openssl", DEFAULT, "m_ssl_openssl.so: Unknown curve: \"%s\"", curvename.c_str());
+			return;
+		}
+
+		EC_KEY* eckey = EC_KEY_new_by_curve_name(nid);
+		if (!eckey)
+		{
+			ServerInstance->Logs->Log("m_ssl_openssl", DEFAULT, "m_ssl_openssl.so: Unable to create EC key object");
+			return;
+		}
+
+		ERR_clear_error();
+		if (SSL_CTX_set_tmp_ecdh(ctx, eckey) < 0)
+		{
+			ServerInstance->Logs->Log("m_ssl_openssl", DEFAULT, "m_ssl_openssl.so: Couldn't set ECDH parameters");
+			ERR_print_errors_cb(error_callback, this);
+		}
+
+		EC_KEY_free(eckey);
+	}
+#endif
+
+#ifdef INSPIRCD_OPENSSL_ENABLE_RENEGO_DETECTION
+	static void SSLInfoCallback(const SSL* ssl, int where, int rc)
+	{
+		int fd = SSL_get_fd(const_cast<SSL*>(ssl));
+		issl_session& session = opensslmod->sessions[fd];
+
+		if ((where & SSL_CB_HANDSHAKE_START) && (session.status == ISSL_OPEN))
+		{
+			// The other side is trying to renegotiate, kill the connection and change status
+			// to ISSL_NONE so CheckRenego() closes the session
+			session.status = ISSL_NONE;
+			ServerInstance->SE->Shutdown(fd, 2);
+		}
+	}
+
+	bool CheckRenego(StreamSocket* sock, issl_session* session)
+	{
+		if (session->status != ISSL_NONE)
+			return true;
+
+		ServerInstance->Logs->Log("m_ssl_openssl", DEBUG, "Session %p killed, attempted to renegotiate", (void*)session->sess);
+		CloseSession(session);
+		sock->SetError("Renegotiation is not allowed");
+		return false;
+	}
+#endif
+
  public:
 
 	ModuleSSLOpenSSL() : iohook(this, "ssl/openssl", SERVICE_IOHOOK)
 	{
+#ifdef INSPIRCD_OPENSSL_ENABLE_RENEGO_DETECTION
+		opensslmod = this;
+#endif
 		sessions = new issl_session[ServerInstance->SE->GetMaxFds()];
 
 		/* Global SSL library initialization*/
@@ -132,6 +230,21 @@ class ModuleSSLOpenSSL : public Module
 
 		SSL_CTX_set_verify(ctx, SSL_VERIFY_PEER | SSL_VERIFY_CLIENT_ONCE, OnVerify);
 		SSL_CTX_set_verify(clictx, SSL_VERIFY_PEER | SSL_VERIFY_CLIENT_ONCE, OnVerify);
+
+		SSL_CTX_set_session_cache_mode(ctx, SSL_SESS_CACHE_OFF);
+		SSL_CTX_set_session_cache_mode(clictx, SSL_SESS_CACHE_OFF);
+
+		long opts = SSL_OP_NO_SSLv2 | SSL_OP_SINGLE_DH_USE;
+		// Only turn options on if they exist
+#ifdef SSL_OP_SINGLE_ECDH_USE
+		opts |= SSL_OP_SINGLE_ECDH_USE;
+#endif
+#ifdef SSL_OP_NO_TICKET
+		opts |= SSL_OP_NO_TICKET;
+#endif
+
+		ctx_options = SSL_CTX_set_options(ctx, opts);
+		clictx_options = SSL_CTX_set_options(clictx, opts);
 	}
 
 	void init()
@@ -157,6 +270,20 @@ class ModuleSSLOpenSSL : public Module
 		sslports.clear();
 
 		ConfigTag* Conf = ServerInstance->Config->ConfValue("openssl");
+
+#ifdef INSPIRCD_OPENSSL_ENABLE_RENEGO_DETECTION
+		// Set the callback if we are not allowing renegotiations, unset it if we do
+		if (Conf->getBool("renegotiation", true))
+		{
+			SSL_CTX_set_info_callback(ctx, NULL);
+			SSL_CTX_set_info_callback(clictx, NULL);
+		}
+		else
+		{
+			SSL_CTX_set_info_callback(ctx, SSLInfoCallback);
+			SSL_CTX_set_info_callback(clictx, SSLInfoCallback);
+		}
+#endif
 
 		if (Conf->getBool("showports", true))
 		{
@@ -213,10 +340,17 @@ class ModuleSSLOpenSSL : public Module
 			throw ModuleException("Unknown hash type " + hash);
 		use_sha = (hash == "sha1");
 
+		if (conf->getBool("customcontextoptions"))
+		{
+			SetContextOptions(ctx, ctx_options, "server", conf);
+			SetContextOptions(clictx, clictx_options, "client", conf);
+		}
+
 		std::string ciphers = conf->getString("ciphers", "");
 
 		if (!ciphers.empty())
 		{
+			ERR_clear_error();
 			if ((!SSL_CTX_set_cipher_list(ctx, ciphers.c_str())) || (!SSL_CTX_set_cipher_list(clictx, ciphers.c_str())))
 			{
 				ServerInstance->Logs->Log("m_ssl_openssl",DEFAULT, "m_ssl_openssl.so: Can't set cipher list to %s.", ciphers.c_str());
@@ -227,12 +361,14 @@ class ModuleSSLOpenSSL : public Module
 		/* Load our keys and certificates
 		 * NOTE: OpenSSL's error logging API sucks, don't blame us for this clusterfuck.
 		 */
+		ERR_clear_error();
 		if ((!SSL_CTX_use_certificate_chain_file(ctx, certfile.c_str())) || (!SSL_CTX_use_certificate_chain_file(clictx, certfile.c_str())))
 		{
 			ServerInstance->Logs->Log("m_ssl_openssl",DEFAULT, "m_ssl_openssl.so: Can't read certificate file %s. %s", certfile.c_str(), strerror(errno));
 			ERR_print_errors_cb(error_callback, this);
 		}
 
+		ERR_clear_error();
 		if (((!SSL_CTX_use_PrivateKey_file(ctx, keyfile.c_str(), SSL_FILETYPE_PEM))) || (!SSL_CTX_use_PrivateKey_file(clictx, keyfile.c_str(), SSL_FILETYPE_PEM)))
 		{
 			ServerInstance->Logs->Log("m_ssl_openssl",DEFAULT, "m_ssl_openssl.so: Can't read key file %s. %s", keyfile.c_str(), strerror(errno));
@@ -240,13 +376,18 @@ class ModuleSSLOpenSSL : public Module
 		}
 
 		/* Load the CAs we trust*/
+		ERR_clear_error();
 		if (((!SSL_CTX_load_verify_locations(ctx, cafile.c_str(), 0))) || (!SSL_CTX_load_verify_locations(clictx, cafile.c_str(), 0)))
 		{
 			ServerInstance->Logs->Log("m_ssl_openssl",DEFAULT, "m_ssl_openssl.so: Can't read CA list from %s. This is only a problem if you want to verify client certificates, otherwise it's safe to ignore this message. Error: %s", cafile.c_str(), strerror(errno));
 			ERR_print_errors_cb(error_callback, this);
 		}
 
+#ifdef _WIN32
+		BIO* dhpfile = BIO_new_file(dhfile.c_str(), "r");
+#else
 		FILE* dhpfile = fopen(dhfile.c_str(), "r");
+#endif
 		DH* ret;
 
 		if (dhpfile == NULL)
@@ -256,15 +397,29 @@ class ModuleSSLOpenSSL : public Module
 		}
 		else
 		{
+#ifdef _WIN32
+			ret = PEM_read_bio_DHparams(dhpfile, NULL, NULL, NULL);
+			BIO_free(dhpfile);
+#else
 			ret = PEM_read_DHparams(dhpfile, NULL, NULL, NULL);
+#endif
+
+			ERR_clear_error();
 			if ((SSL_CTX_set_tmp_dh(ctx, ret) < 0) || (SSL_CTX_set_tmp_dh(clictx, ret) < 0))
 			{
 				ServerInstance->Logs->Log("m_ssl_openssl",DEFAULT, "m_ssl_openssl.so: Couldn't set DH parameters %s. SSL errors follow:", dhfile.c_str());
 				ERR_print_errors_cb(error_callback, this);
 			}
+			DH_free(ret);
 		}
 
+#ifndef _WIN32
 		fclose(dhpfile);
+#endif
+
+#ifdef INSPIRCD_OPENSSL_ENABLE_ECDH
+		SetupECDH(conf);
+#endif
 	}
 
 	void On005Numeric(std::string &output)
@@ -325,6 +480,12 @@ class ModuleSSLOpenSSL : public Module
 
 			req.cert = session->cert;
 		}
+		else if (!strcmp("GET_RAW_SSL_SESSION", request.id))
+		{
+			SSLRawSessionRequest& req = static_cast<SSLRawSessionRequest&>(request);
+			if ((req.fd >= 0) && (req.fd < ServerInstance->SE->GetMaxFds()))
+				req.data = reinterpret_cast<void*>(sessions[req.fd].sess);
+		}
 	}
 
 	void OnStreamSocketAccept(StreamSocket* user, irc::sockets::sockaddrs* client, irc::sockets::sockaddrs* server)
@@ -336,7 +497,7 @@ class ModuleSSLOpenSSL : public Module
 		session->sess = SSL_new(ctx);
 		session->status = ISSL_NONE;
 		session->outbound = false;
-		session->cert = NULL;
+		session->data_to_write = false;
 
 		if (session->sess == NULL)
 			return;
@@ -362,6 +523,7 @@ class ModuleSSLOpenSSL : public Module
 		session->sess = SSL_new(clictx);
 		session->status = ISSL_NONE;
 		session->outbound = true;
+		session->data_to_write = false;
 
 		if (session->sess == NULL)
 			return;
@@ -416,9 +578,15 @@ class ModuleSSLOpenSSL : public Module
 
 		if (session->status == ISSL_OPEN)
 		{
+			ERR_clear_error();
 			char* buffer = ServerInstance->GetReadBuffer();
 			size_t bufsiz = ServerInstance->Config->NetBufferSize;
 			int ret = SSL_read(session->sess, buffer, bufsiz);
+
+#ifdef INSPIRCD_OPENSSL_ENABLE_RENEGO_DETECTION
+			if (!CheckRenego(user, session))
+				return -1;
+#endif
 
 			if (ret > 0)
 			{
@@ -486,7 +654,14 @@ class ModuleSSLOpenSSL : public Module
 
 		if (session->status == ISSL_OPEN)
 		{
+			ERR_clear_error();
 			int ret = SSL_write(session->sess, buffer.data(), buffer.size());
+
+#ifdef INSPIRCD_OPENSSL_ENABLE_RENEGO_DETECTION
+			if (!CheckRenego(user, session))
+				return -1;
+#endif
+
 			if (ret == (int)buffer.length())
 			{
 				session->data_to_write = false;
@@ -532,6 +707,7 @@ class ModuleSSLOpenSSL : public Module
 	{
 		int ret;
 
+		ERR_clear_error();
 		if (session->outbound)
 			ret = SSL_connect(session->sess);
 		else
@@ -574,10 +750,8 @@ class ModuleSSLOpenSSL : public Module
 		else if (ret == 0)
 		{
 			CloseSession(session);
-			return true;
 		}
-
-		return true;
+		return false;
 	}
 
 	void CloseSession(issl_session* session)
@@ -590,7 +764,7 @@ class ModuleSSLOpenSSL : public Module
 
 		session->sess = NULL;
 		session->status = ISSL_NONE;
-		errno = EIO;
+		session->cert = NULL;
 	}
 
 	void VerifyCertificate(issl_session* session, StreamSocket* user)
@@ -626,8 +800,17 @@ class ModuleSSLOpenSSL : public Module
 			certinfo->trusted = false;
 		}
 
-		certinfo->dn = X509_NAME_oneline(X509_get_subject_name(cert),0,0);
-		certinfo->issuer = X509_NAME_oneline(X509_get_issuer_name(cert),0,0);
+		char buf[512];
+		X509_NAME_oneline(X509_get_subject_name(cert), buf, sizeof(buf));
+		certinfo->dn = buf;
+		// Make sure there are no chars in the string that we consider invalid
+		if (certinfo->dn.find_first_of("\r\n") != std::string::npos)
+			certinfo->dn.clear();
+
+		X509_NAME_oneline(X509_get_issuer_name(cert), buf, sizeof(buf));
+		certinfo->issuer = buf;
+		if (certinfo->issuer.find_first_of("\r\n") != std::string::npos)
+			certinfo->issuer.clear();
 
 		if (!X509_digest(cert, digest, md, &n))
 		{

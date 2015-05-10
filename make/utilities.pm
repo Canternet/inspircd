@@ -76,6 +76,7 @@ sub promptstring($$$$$)
 sub make_rpath($;$)
 {
 	my ($executable, $module) = @_;
+	return "" if defined $ENV{DISABLE_RPATH};
 	chomp(my $data = `$executable`);
 	my $output = "";
 	while ($data =~ /-L(\S+)/)
@@ -83,10 +84,10 @@ sub make_rpath($;$)
 		my $libpath = $1;
 		if (!exists $already_added{$libpath})
 		{
-			print "Adding extra library path to \e[1;32m$module\e[0m ... \e[1;32m$libpath\e[0m\n";
+			print "Adding runtime library path to \e[1;32m$module\e[0m ... \e[1;32m$libpath\e[0m\n";
 			$already_added{$libpath} = 1;
 		}
-		$output .= "-Wl,--rpath -Wl,$libpath -L$libpath " unless defined $main::opt_disablerpath;
+		$output .= "-Wl,-rpath -Wl,$libpath -L$libpath ";
 		$data =~ s/-L(\S+)//;
 	}
 	return $output;
@@ -94,6 +95,7 @@ sub make_rpath($;$)
 
 sub extend_pkg_path()
 {
+	return if defined $ENV{DISABLE_EXTEND_PKG_PATH};
 	if (!exists $ENV{PKG_CONFIG_PATH})
 	{
 		$ENV{PKG_CONFIG_PATH} = "/usr/lib/pkgconfig:/usr/local/lib/pkgconfig:/usr/local/libdata/pkgconfig:/usr/X11R6/libdata/pkgconfig";
@@ -127,7 +129,8 @@ sub pkgconfig_get_include_dirs($$$;$)
 	if ((!defined $v) || ($v eq ""))
 	{
 		print "\e[31mCould not find $packagename via pkg-config\e[m (\e[1;32mplease install pkg-config\e[m)\n";
-		$foo = `locate "$headername" 2>/dev/null | head -n 1`;
+		my $locbin = $^O eq 'solaris' ? 'slocate' : 'locate';
+		$foo = `$locbin "$headername" 2>/dev/null | head -n 1`;
 		my $find = $foo =~ /(.+)\Q$headername\E/ ? $1 : '';
 		chomp($find);
 		if ((defined $find) && ($find ne "") && ($find ne $packagename))
@@ -242,7 +245,8 @@ sub pkgconfig_get_lib_dirs($$$;$)
 	my $foo = "";
 	if ((!defined $v) || ($v eq ""))
 	{
-		$foo = `locate "$libname" | head -n 1`;
+		my $locbin = $^O eq 'solaris' ? 'slocate' : 'locate';
+		$foo = `$locbin "$libname" | head -n 1`;
 		$foo =~ /(.+)\Q$libname\E/;
 		my $find = $1;
 		chomp($find);
@@ -313,6 +317,15 @@ sub translate_functions($$)
 		if (($line =~ /`/) && ($line !~ /eval\(.+?`.+?\)/))
 		{
 			die "Developers should no longer use backticks in configuration macros. Please use exec() and eval() macros instead. Offending line: $line (In module: $module)";
+		}
+
+		if ($line =~ /if(gt|lt)\("(.+?)","(.+?)"\)/) {
+			chomp(my $result = `$2 2>/dev/null`);
+			if (($1 eq 'gt' && $result le $3) || ($1 eq 'lt' && $result ge $3)) {
+				$line = substr $line, 0, $-[0];
+			} else {
+				$line =~ s/if$1\("$2","$3"\)//;
+			}
 		}
 
 		if ($line =~ /ifuname\(\!"(\w+)"\)/)
@@ -398,6 +411,7 @@ sub translate_functions($$)
 			close TF;
 			my $replace = `perl $tmpfile`;
 			chomp($replace);
+			unlink($tmpfile);
 			$line =~ s/eval\("(.+?)"\)/$replace/;
 		}
 		while ($line =~ /pkgconflibs\("(.+?)","(.+?)","(.+?)"\)/)
@@ -432,7 +446,6 @@ sub translate_functions($$)
 		while ($line =~ /rpath\("(.+?)"\)/)
 		{
 			my $replace = make_rpath($1,$module);
-			$replace = "" if ($^O =~ /darwin/i);
 			$line =~ s/rpath\("(.+?)"\)/$replace/;
 		}
 	};
@@ -444,7 +457,7 @@ sub translate_functions($$)
 		print "\nMake sure you have pkg-config installed\n";
 		print "\nIn the case of gnutls configuration errors on debian,\n";
 		print "Ubuntu, etc, you should ensure that you have installed\n";
-		print "gnutls-bin as well as gnutls-dev and gnutls.\n";
+		print "gnutls-bin as well as libgnutls-dev and libgnutls.\n";
 		exit;
 	}
 	else

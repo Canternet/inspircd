@@ -637,7 +637,7 @@ void OperInfo::init()
 			{
 				this->AllowedUserModes.set();
 			}
-			else if (*c >= 'A' && *c < 'z')
+			else if (*c >= 'A' && *c <= 'z')
 			{
 				this->AllowedUserModes[*c - 'A'] = true;
 			}
@@ -650,7 +650,7 @@ void OperInfo::init()
 			{
 				this->AllowedChanModes.set();
 			}
-			else if (*c >= 'A' && *c < 'z')
+			else if (*c >= 'A' && *c <= 'z')
 			{
 				this->AllowedChanModes[*c - 'A'] = true;
 			}
@@ -1321,26 +1321,19 @@ void User::SendText(const char *text, ...)
 
 void User::SendText(const std::string &LinePrefix, std::stringstream &TextStream)
 {
-	char line[MAXBUF];
-	int start_pos = LinePrefix.length();
-	int pos = start_pos;
-	memcpy(line, LinePrefix.data(), pos);
+	std::string line;
 	std::string Word;
 	while (TextStream >> Word)
 	{
-		int len = Word.length();
-		if (pos + len + 12 > MAXBUF)
+		size_t lineLength = LinePrefix.length() + line.length() + Word.length() + 13;
+		if (lineLength > MAXBUF)
 		{
-			line[pos] = '\0';
-			SendText(std::string(line));
-			pos = start_pos;
+			SendText(LinePrefix + line);
+			line.clear();
 		}
-		line[pos] = ' ';
-		memcpy(line + pos + 1, Word.data(), len);
-		pos += len + 1;
+		line += " " + Word;
 	}
-	line[pos] = '\0';
-	SendText(std::string(line));
+	SendText(LinePrefix + line);
 }
 
 /* return 0 or 1 depending if users u and u2 share one or more common channels
@@ -1549,7 +1542,7 @@ void User::SplitChanList(User* dest, const std::string &cl)
 {
 	std::string line;
 	std::ostringstream prefix;
-	std::string::size_type start, pos, length;
+	std::string::size_type start, pos;
 
 	prefix << this->nick << " " << dest->nick << " :";
 	line = prefix.str();
@@ -1557,23 +1550,13 @@ void User::SplitChanList(User* dest, const std::string &cl)
 
 	for (start = 0; (pos = cl.find(' ', start)) != std::string::npos; start = pos+1)
 	{
-		length = (pos == std::string::npos) ? cl.length() : pos;
-
-		if (line.length() + namelen + length - start > 510)
+		if (line.length() + namelen + pos - start > 510)
 		{
 			ServerInstance->SendWhoisLine(this, dest, 319, "%s", line.c_str());
 			line = prefix.str();
 		}
 
-		if(pos == std::string::npos)
-		{
-			line.append(cl.substr(start, length - start));
-			break;
-		}
-		else
-		{
-			line.append(cl.substr(start, length - start + 1));
-		}
+		line.append(cl.substr(start, pos - start + 1));
 	}
 
 	if (line.length() != prefix.str().length())

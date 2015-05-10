@@ -1,4 +1,5 @@
 *~
+*.pem
 *.swp
 
 /.config.cache
@@ -6,6 +7,7 @@
 /BSDmakefile
 /GNUmakefile
 /build
+/docs/doxygen
 /inspircd
 /org.inspircd.plist
 /run

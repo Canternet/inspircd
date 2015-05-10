@@ -93,20 +93,26 @@ class SaslAuthenticator
 		{
 		 case SASL_INIT:
 			this->agent = msg[0];
-			this->user->Write("AUTHENTICATE %s", msg[3].c_str());
 			this->state = SASL_COMM;
-			break;
+			/* fall through */
 		 case SASL_COMM:
 			if (msg[0] != this->agent)
 				return this->state;
 
-			if (msg[2] != "D")
+			if (msg.size() < 4)
+				return this->state;
+
+			if (msg[2] == "C")
 				this->user->Write("AUTHENTICATE %s", msg[3].c_str());
-			else
+			else if (msg[2] == "D")
 			{
 				this->state = SASL_DONE;
 				this->result = this->GetSaslResult(msg[3]);
 			}
+			else if (msg[2] == "M")
+				this->user->WriteNumeric(908, "%s %s :are available SASL mechanisms", this->user->nick.c_str(), msg[3].c_str());
+			else
+				ServerInstance->Logs->Log("m_sasl", DEFAULT, "Services sent an unknown SASL message \"%s\" \"%s\"", msg[2].c_str(), msg[3].c_str());
 
 			break;
 		 case SASL_DONE:
@@ -287,7 +293,7 @@ class ModuleSASL : public Module
 
 	Version GetVersion()
 	{
-		return Version("Provides support for IRC Authentication Layer (aka: atheme SASL) via AUTHENTICATE.",VF_VENDOR);
+		return Version("Provides support for IRC Authentication Layer (aka: SASL) via AUTHENTICATE.", VF_VENDOR);
 	}
 
 	void OnEvent(Event &ev)

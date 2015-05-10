@@ -38,6 +38,7 @@
 #include "protocolinterface.h"
 
 ModuleSpanningTree::ModuleSpanningTree()
+	: KeepNickTS(false)
 {
 	Utils = new SpanningTreeUtilities(this);
 	commands = new SpanningTreeCommands(this);
@@ -87,7 +88,7 @@ void ModuleSpanningTree::init()
 	loopCall = false;
 
 	// update our local user count
-	Utils->TreeRoot->SetUserCount(ServerInstance->Users->local_users.size());
+	Utils->TreeRoot->SetUserCount(ServerInstance->Users->LocalUserCount());
 }
 
 void ModuleSpanningTree::ShowLinks(TreeServer* Current, User* user, int hops)
@@ -704,11 +705,12 @@ void ModuleSpanningTree::OnUserPostNick(User* user, const std::string &oldnick)
 
 		/** IMPORTANT: We don't update the TS if the oldnick is just a case change of the newnick!
 		 */
-		if (irc::string(user->nick.c_str()) != assign(oldnick))
+		if ((irc::string(user->nick.c_str()) != assign(oldnick)) && (!this->KeepNickTS))
 			user->age = ServerInstance->Time();
 
 		params.push_back(ConvToStr(user->age));
 		Utils->DoOneToMany(user->uuid,"NICK",params);
+		this->KeepNickTS = false;
 	}
 	else if (!loopCall && user->nick == user->uuid)
 	{
@@ -804,6 +806,7 @@ void ModuleSpanningTree::OnUnloadModule(Module* mod)
 {
 	ServerInstance->PI->SendMetaData(NULL, "modules", "-" + mod->ModuleSourceFile);
 
+restart:
 	unsigned int items = Utils->TreeRoot->ChildCount();
 	for(unsigned int x = 0; x < items; x++)
 	{
@@ -813,6 +816,8 @@ void ModuleSpanningTree::OnUnloadModule(Module* mod)
 		{
 			sock->SendError("SSL module unloaded");
 			sock->Close();
+			// XXX: The list we're iterating is modified by TreeSocket::Squit() which is called by Close()
+			goto restart;
 		}
 	}
 
@@ -923,6 +928,12 @@ ModResult ModuleSpanningTree::OnSetAway(User* user, const std::string &awaymsg)
 	}
 
 	return MOD_RES_PASSTHRU;
+}
+
+void ModuleSpanningTree::OnRequest(Request& request)
+{
+	if (!strcmp(request.id, "rehash"))
+		Utils->Rehash();
 }
 
 void ModuleSpanningTree::ProtoSendMode(void* opaque, TargetTypeFlags target_type, void* target, const parameterlist &modeline, const std::vector<TranslateType> &translate)

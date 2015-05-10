@@ -217,7 +217,7 @@ void CommandStats::DoStats(char statschar, User* user, string_list &results)
 			results.push_back(sn+" 249 "+user->nick+" :Channels: "+ConvToStr(ServerInstance->chanlist->size()));
 			results.push_back(sn+" 249 "+user->nick+" :Commands: "+ConvToStr(ServerInstance->Parser->cmdlist.size()));
 
-			if (!ServerInstance->Config->WhoWasGroupSize == 0 && !ServerInstance->Config->WhoWasMaxGroups == 0)
+			if (ServerInstance->Config->WhoWasGroupSize && ServerInstance->Config->WhoWasMaxGroups)
 			{
 				Module* whowas = ServerInstance->Modules->Find("cmd_whowas.so");
 				if (whowas)
@@ -348,7 +348,7 @@ void CommandStats::DoStats(char statschar, User* user, string_list &results)
 				tag->init();
 				std::string umodes;
 				std::string cmodes;
-				for(char c='A'; c < 'z'; c++)
+				for(char c='A'; c <= 'z'; c++)
 				{
 					ModeHandler* mh = ServerInstance->Modes->FindMode(c, MODETYPE_USER);
 					if (mh && mh->NeedsOper() && tag->AllowedUserModes[c - 'A'])
@@ -368,7 +368,7 @@ void CommandStats::DoStats(char statschar, User* user, string_list &results)
 			for (LocalUserList::iterator n = ServerInstance->Users->local_users.begin(); n != ServerInstance->Users->local_users.end(); n++)
 			{
 				LocalUser* i = *n;
-				results.push_back(sn+" 211 "+user->nick+" "+i->nick+"["+i->ident+"@"+i->dhost+"] "+ConvToStr(i->eh.getSendQSize())+" "+ConvToStr(i->cmds_out)+" "+ConvToStr(i->bytes_out)+" "+ConvToStr(i->cmds_in)+" "+ConvToStr(i->bytes_in)+" "+ConvToStr(ServerInstance->Time() - i->age));
+				results.push_back(sn+" 211 "+user->nick+" "+i->nick+"["+i->ident+"@"+i->dhost+"] "+ConvToStr(i->eh.getSendQSize())+" "+ConvToStr(i->cmds_out)+" "+ConvToStr(i->bytes_out)+" "+ConvToStr(i->cmds_in)+" "+ConvToStr(i->bytes_in)+" "+ConvToStr(ServerInstance->Time() - i->signon));
 			}
 		break;
 
@@ -378,7 +378,7 @@ void CommandStats::DoStats(char statschar, User* user, string_list &results)
 			for (LocalUserList::iterator n = ServerInstance->Users->local_users.begin(); n != ServerInstance->Users->local_users.end(); n++)
 			{
 				LocalUser* i = *n;
-				results.push_back(sn+" 211 "+user->nick+" "+i->nick+"["+i->ident+"@"+i->GetIPString()+"] "+ConvToStr(i->eh.getSendQSize())+" "+ConvToStr(i->cmds_out)+" "+ConvToStr(i->bytes_out)+" "+ConvToStr(i->cmds_in)+" "+ConvToStr(i->bytes_in)+" "+ConvToStr(ServerInstance->Time() - i->age));
+				results.push_back(sn+" 211 "+user->nick+" "+i->nick+"["+i->ident+"@"+i->GetIPString()+"] "+ConvToStr(i->eh.getSendQSize())+" "+ConvToStr(i->cmds_out)+" "+ConvToStr(i->bytes_out)+" "+ConvToStr(i->cmds_in)+" "+ConvToStr(i->bytes_in)+" "+ConvToStr(ServerInstance->Time() - i->signon));
 			}
 		break;
 
@@ -420,7 +420,13 @@ void CommandStats::DoStats(char statschar, User* user, string_list &results)
 CmdResult CommandStats::Handle (const std::vector<std::string>& parameters, User *user)
 {
 	if (parameters.size() > 1 && parameters[1] != ServerInstance->Config->ServerName)
+	{
+		// Give extra penalty if a non-oper does /STATS <remoteserver>
+		LocalUser* localuser = IS_LOCAL(user);
+		if ((localuser) && (!IS_OPER(user)))
+			localuser->CommandFloodPenalty += 2000;
 		return CMD_SUCCESS;
+	}
 	string_list values;
 	char search = parameters[0][0];
 	DoStats(search, user, values);

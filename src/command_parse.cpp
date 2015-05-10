@@ -204,12 +204,22 @@ bool CommandParser::ProcessCommand(LocalUser *user, std::string &cmd)
 	/* find the command, check it exists */
 	Commandtable::iterator cm = cmdlist.find(command);
 
+	// Penalty to give if the command fails before the handler is executed
+	unsigned int failpenalty = 0;
+
 	/* Modify the user's penalty regardless of whether or not the command exists */
 	bool do_more = true;
 	if (!user->HasPrivPermission("users/flood/no-throttle"))
 	{
 		// If it *doesn't* exist, give it a slightly heftier penalty than normal to deter flooding us crap
-		user->CommandFloodPenalty += cm != cmdlist.end() ? cm->second->Penalty * 1000 : 2000;
+		unsigned int penalty = (cm != cmdlist.end() ? cm->second->Penalty * 1000 : 2000);
+		user->CommandFloodPenalty += penalty;
+
+		// Increase their penalty later if we fail and the command has 0 penalty by default (i.e. in Command::Penalty) to
+		// throttle sending ERR_* from the command parser. If the command does have a non-zero penalty then this is not
+		// needed because we've increased their penalty above.
+		if (penalty == 0)
+			failpenalty = 1000;
 	}
 
 
@@ -290,11 +300,13 @@ bool CommandParser::ProcessCommand(LocalUser *user, std::string &cmd)
 	{
 		if (!user->IsModeSet(cm->second->flags_needed))
 		{
+			user->CommandFloodPenalty += failpenalty;
 			user->WriteNumeric(ERR_NOPRIVILEGES, "%s :Permission Denied - You do not have the required operator privileges",user->nick.c_str());
 			return do_more;
 		}
 		if (!user->HasPermission(command))
 		{
+			user->CommandFloodPenalty += failpenalty;
 			user->WriteNumeric(ERR_NOPRIVILEGES, "%s :Permission Denied - Oper type %s does not have access to command %s",
 				user->nick.c_str(), user->oper->NameStr(), command.c_str());
 			return do_more;
@@ -303,6 +315,7 @@ bool CommandParser::ProcessCommand(LocalUser *user, std::string &cmd)
 	if ((user->registered == REG_ALL) && (!IS_OPER(user)) && (cm->second->IsDisabled()))
 	{
 		/* command is disabled! */
+		user->CommandFloodPenalty += failpenalty;
 		if (ServerInstance->Config->DisabledDontExist)
 		{
 			user->WriteNumeric(ERR_UNKNOWNCOMMAND, "%s %s :Unknown command",user->nick.c_str(),command.c_str());
@@ -313,7 +326,7 @@ bool CommandParser::ProcessCommand(LocalUser *user, std::string &cmd)
 										user->nick.c_str(), command.c_str());
 		}
 
-		ServerInstance->SNO->WriteToSnoMask('t', "%s denied for %s (%s@%s)",
+		ServerInstance->SNO->WriteToSnoMask('a', "%s denied for %s (%s@%s)",
 				command.c_str(), user->nick.c_str(), user->ident.c_str(), user->host.c_str());
 		return do_more;
 	}
@@ -323,6 +336,7 @@ bool CommandParser::ProcessCommand(LocalUser *user, std::string &cmd)
 
 	if (command_p.size() < cm->second->min_params)
 	{
+		user->CommandFloodPenalty += failpenalty;
 		user->WriteNumeric(ERR_NEEDMOREPARAMS, "%s %s :Not enough parameters.", user->nick.c_str(), command.c_str());
 		if ((ServerInstance->Config->SyntaxHints) && (user->registered == REG_ALL) && (cm->second->syntax.length()))
 			user->WriteNumeric(RPL_SYNTAX, "%s :SYNTAX %s %s", user->nick.c_str(), cm->second->name.c_str(), cm->second->syntax.c_str());
@@ -330,7 +344,8 @@ bool CommandParser::ProcessCommand(LocalUser *user, std::string &cmd)
 	}
 	if ((user->registered != REG_ALL) && (!cm->second->WorksBeforeReg()))
 	{
-		user->WriteNumeric(ERR_NOTREGISTERED, "%s :You have not registered",command.c_str());
+		user->CommandFloodPenalty += failpenalty;
+		user->WriteNumeric(ERR_NOTREGISTERED, "%s %s :You have not registered", user->nick.c_str(), command.c_str());
 		return do_more;
 	}
 	else

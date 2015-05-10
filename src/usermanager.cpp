@@ -72,7 +72,7 @@ void UserManager::AddUser(int socket, ListenSocket* via, irc::sockets::sockaddrs
 	(*(this->clientlist))[New->nick] = New;
 
 	New->registered = REG_NONE;
-	New->signon = ServerInstance->Time() + ServerInstance->Config->dns_timeout;
+	New->signon = ServerInstance->Time();
 	New->lastping = 1;
 
 	ServerInstance->Users->AddLocalClone(New);
@@ -284,6 +284,22 @@ void UserManager::RemoveCloneCounts(User *user)
 		{
 			global_clones.erase(y);
 		}
+	}
+}
+
+void UserManager::RehashCloneCounts()
+{
+	local_clones.clear();
+	global_clones.clear();
+
+	const user_hash& hash = *ServerInstance->Users->clientlist;
+	for (user_hash::const_iterator i = hash.begin(); i != hash.end(); ++i)
+	{
+		User* u = i->second;
+
+		if (IS_LOCAL(u))
+			AddLocalClone(u);
+		AddGlobalClone(u);
 	}
 }
 

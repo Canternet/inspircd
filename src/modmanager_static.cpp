@@ -158,7 +158,8 @@ namespace {
 			ServerInstance->Modules->DoSafeUnload(mod);
 			ServerInstance->GlobalCulls.Apply();
 			bool rv = ServerInstance->Modules->Load(name.c_str());
-			callback->Call(rv);
+			if (callback)
+				callback->Call(rv);
 			ServerInstance->GlobalCulls.AddItem(this);
 		}
 	};
@@ -176,7 +177,7 @@ void ModuleManager::Reload(Module* mod, HandlerBase1<void, bool>* callback)
 {
 	if (CanUnload(mod))
 		ServerInstance->AtomicActions.AddAction(new ReloadAction(mod, callback));
-	else
+	else if (callback)
 		callback->Call(false);
 }
 

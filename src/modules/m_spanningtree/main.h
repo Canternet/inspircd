@@ -63,6 +63,11 @@ class ModuleSpanningTree : public Module
 	 */
 	bool loopCall;
 
+	/** If true OnUserPostNick() won't update the nick TS before sending the NICK,
+	 * used when handling SVSNICK.
+	 */
+	bool KeepNickTS;
+
 	/** Constructor
 	 */
 	ModuleSpanningTree();
@@ -173,6 +178,7 @@ class ModuleSpanningTree : public Module
 	void OnLoadModule(Module* mod);
 	void OnUnloadModule(Module* mod);
 	ModResult OnAcceptConnection(int newsock, ListenSocket* from, irc::sockets::sockaddrs* client, irc::sockets::sockaddrs* server);
+	void OnRequest(Request& request);
 	CullResult cull();
 	~ModuleSpanningTree();
 	Version GetVersion();
