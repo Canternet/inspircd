@@ -121,7 +121,7 @@ class CacheTimer : public Timer
 	DNS* dns;
  public:
 	CacheTimer(DNS* thisdns)
-		: Timer(3600, ServerInstance->Time(), true), dns(thisdns) { }
+		: Timer(5*60, ServerInstance->Time(), true), dns(thisdns) { }
 
 	virtual void Tick(time_t)
 	{
@@ -162,6 +162,8 @@ class RequestTimeout : public Timer
 
 CachedQuery::CachedQuery(const std::string &res, QueryType qt, unsigned int ttl) : data(res), type(qt)
 {
+	if (ttl > 5*60)
+		ttl = 5*60;
 	expires = ServerInstance->Time() + ttl;
 }
 
@@ -1058,7 +1060,11 @@ void DNS::HandleEvent(EventType, int)
 					ServerInstance->stats->statsDnsGood++;
 
 				if (!this->GetCache(res.original.c_str()))
+				{
+					if (cache->size() >= MAX_CACHE_SIZE)
+						cache->clear();
 					this->cache->insert(std::make_pair(res.original.c_str(), CachedQuery(res.result, res.type, res.ttl)));
+				}
 
 				Classes[res.id]->OnLookupComplete(res.result, res.ttl, false);
 				delete Classes[res.id];

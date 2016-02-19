@@ -414,6 +414,9 @@
 #-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#
 # Channelban: Implements extended ban j:, which stops anyone already
 # in a channel matching a ban like +b j:#channel*mask from joining.
+# Note that by default wildcard characters * and ? are allowed in
+# channel names. To disallow them, load m_channames and add characters
+# 42 and 63 to denyrange (see above).
 #<module name="m_channelban.so">
 
 #-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#
@@ -668,6 +671,7 @@
 #  length            - Default duration of entries in DCCALLOW list.
 #  action            - Default action to take if no action is
 #                      specified, can be 'block' or 'allow'.
+#  maxentries        - Max number of nicks to allow on a DCCALLOW list.
 #
 # File configuration:
 #  pattern           - The glob pattern to match against.
@@ -675,7 +679,7 @@
 #                      that matches this pattern, can be 'block' or
 #                      'allow'.
 #
-#<dccallow blockchat="yes" length="5m" action="block">
+#<dccallow blockchat="yes" length="5m" action="block" maxentries="20">
 #<banfile pattern="*.exe" action="block">
 #<banfile pattern="*.txt" action="allow">
 
