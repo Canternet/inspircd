@@ -405,12 +405,19 @@ class ModuleSSLOpenSSL : public Module
 #endif
 
 			ERR_clear_error();
-			if ((SSL_CTX_set_tmp_dh(ctx, ret) < 0) || (SSL_CTX_set_tmp_dh(clictx, ret) < 0))
+			if (ret)
 			{
-				ServerInstance->Logs->Log("m_ssl_openssl",DEFAULT, "m_ssl_openssl.so: Couldn't set DH parameters %s. SSL errors follow:", dhfile.c_str());
-				ERR_print_errors_cb(error_callback, this);
+				if ((SSL_CTX_set_tmp_dh(ctx, ret) < 0) || (SSL_CTX_set_tmp_dh(clictx, ret) < 0))
+				{
+					ServerInstance->Logs->Log("m_ssl_openssl", DEFAULT, "m_ssl_openssl.so: Couldn't set DH parameters %s. SSL errors follow:", dhfile.c_str());
+					ERR_print_errors_cb(error_callback, this);
+				}
+				DH_free(ret);
 			}
-			DH_free(ret);
+			else
+			{
+				ServerInstance->Logs->Log("m_ssl_openssl", DEFAULT, "m_ssl_openssl.so: Couldn't set DH parameters %s.", dhfile.c_str());
+			}
 		}
 
 #ifndef _WIN32
@@ -591,8 +598,15 @@ class ModuleSSLOpenSSL : public Module
 			if (ret > 0)
 			{
 				recvq.append(buffer, ret);
+
+				int mask = 0;
+				// Schedule a read if there is still data in the OpenSSL buffer
+				if (SSL_pending(session->sess) > 0)
+					mask |= FD_ADD_TRIAL_READ;
 				if (session->data_to_write)
-					ServerInstance->SE->ChangeEventMask(user, FD_WANT_POLL_READ | FD_WANT_SINGLE_WRITE);
+					mask |= FD_WANT_POLL_READ | FD_WANT_SINGLE_WRITE;
+				if (mask != 0)
+					ServerInstance->SE->ChangeEventMask(user, mask);
 				return 1;
 			}
 			else if (ret == 0)
