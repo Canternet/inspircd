@@ -716,7 +716,7 @@ if (($config{USE_GNUTLS} eq "y") || ($config{USE_OPENSSL} eq "y")) {
 	print "Please note: for \e[1;32mSSL support\e[0m you will need to load required\n";
 	print "modules in your config. This configure script has added those modules to the\n";
 	print "build process. For more info, please refer to:\n";
-	print "\e[1;32mhttp://wiki.inspircd.org/Installation_From_Tarball\e[0m\n";
+	print "\e[1;32mhttps://wiki.inspircd.org/Installation_From_Tarball\e[0m\n";
 }
 print "*** \e[1;32mRemember to edit your configuration files!!!\e[0m ***\n\n\n";
 if (($config{OSNAME} eq "OpenBSD") && ($config{CC} ne "eg++")) {
@@ -731,6 +731,14 @@ your compile will most likely fail horribly! If you have any problems, do NOT
 report them to the bugtracker or forums without first upgrading your compiler
 to a newer 3.x or 4.x (or whatever is available currently) version.
 FOO2
+}
+
+if ($^O eq 'openbsd') {
+	print <<__OPENBSD_WARNING__;
+\e[1;32mWARNING!\e[0m OpenBSD 6.5 changed Make to no longer look for BSDmakefile when
+searching for the makefile. If the version of OpenBSD you are using is 6.5 or
+newer then you will need to run '\e[1;32mmake -f BSDmakefile\e[0m' or '\e[1;32mgmake\e[0m' instead.
+__OPENBSD_WARNING__
 }
 
 ################################################################################

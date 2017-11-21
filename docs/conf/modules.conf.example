@@ -10,7 +10,7 @@
 #                                                                     #
 #  By default, ALL modules are commented out. You must uncomment them #
 #  or add lines to your config to load modules. Please refer to       #
-#  http://wiki.inspircd.org/Modules for a list of modules and         #
+#  https://wiki.inspircd.org/2.0/Modules for a list of modules and    #
 #  each modules link for any additional conf tags they require.       #
 #                                                                     #
 #    ____                _   _____ _     _       ____  _ _   _        #
@@ -313,7 +313,7 @@
 #                                                                     #
 # Optional - If you specify to use the m_censor module, then you must #
 # specify some censor tags. See also:                                 #
-# http://wiki.inspircd.org/Modules/censor                             #
+# https://wiki.inspircd.org/Modules/2.0/censor                        #
 #
 #<include file="conf/examples/censor.conf.example">
 
@@ -327,7 +327,7 @@
 # Optional - If you specify to use m_cgiirc, then you must specify one
 # or more cgihost tags which indicate authorised CGI:IRC servers which
 # will be connecting to your network, and an optional cgiirc tag.
-# For more information see: http://wiki.inspircd.org/Modules/cgiirc
+# For more information see: https://wiki.inspircd.org/Modules/2.0/cgiirc
 #
 # Set to yes if you want to notice opers when CGI:IRC clients connect.
 # <cgiirc opernotice="no">
@@ -745,7 +745,7 @@
 #<module name="m_dnsbl.so">                                           #
 #                                                                     #
 # For configuration options please see the wiki page for m_dnsbl at   #
-# http://wiki.inspircd.org/Modules/dnsbl                              #
+# https://wiki.inspircd.org/Modules/2.0/dnsbl                         #
 
 #-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#
 # Exempt channel operators module: Provides support for allowing      #
@@ -876,7 +876,7 @@
 #
 #-#-#-#-#-#-#-#-#-#-#-  HOSTCHANGE  CONFIGURATION  -#-#-#-#-#-#-#-#-#-#
 #                                                                     #
-# See http://wiki.inspircd.org/Modules/hostchange for help.           #
+# See https://wiki.inspircd.org/Modules/2.0/hostchange for help.      #
 #                                                                     #
 #<host suffix="invalid.org" separator="." prefix="">
 #<hostchange mask="*@42.theanswer.example.org" action="addnick">
@@ -949,7 +949,7 @@
 #<inviteexception bypasskey="yes">
 
 #-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#
-# IRCv3 module: Provides the following IRCv3.1 extensions:
+# IRCv3 module: Provides the following IRCv3 extensions:
 # extended-join, away-notify and account-notify. These are optional
 # enhancements to the client-to-server protocol. An extension is only
 # active for a client when the client specifically requests it, so this
@@ -957,7 +957,7 @@
 #
 # Further information on these extensions can be found at the IRCv3
 # working group website:
-# http://ircv3.org/extensions/
+# http://ircv3.net/irc/
 #
 #<module name="m_ircv3.so">
 # The following block can be used to control which extensions are
@@ -1137,7 +1137,7 @@
 #-#-#-#-#-#-#-#-#-#-#-#- SQL CONFIGURATION   -#-#-#-#-#-#-#-#-#-#-#-#-#
 #                                                                     #
 # m_mssql.so is more complex than described here, see wiki for more   #
-# info http://wiki.inspircd.org/Modules/mssql                         #
+# info https://wiki.inspircd.org/Modules/2.0/mssql                    #
 #
 #<database module="mssql" name="db" user="user" pass="pass" host="localhost" id="db1">
 
@@ -1152,7 +1152,7 @@
 #-#-#-#-#-#-#-#-#-#-#-#- SQL CONFIGURATION   -#-#-#-#-#-#-#-#-#-#-#-#-#
 #                                                                     #
 # m_mysql.so is more complex than described here, see the wiki for    #
-# more: http://wiki.inspircd.org/Modules/mysql                        #
+# more: https://wiki.inspircd.org/Modules/2.0/mysql                   #
 #
 #<database module="mysql" name="mydb" user="myuser" pass="mypass" host="localhost" id="my_database2">
 
@@ -1317,7 +1317,7 @@
 #-#-#-#-#-#-#-#-#-#-#   OVERRIDE CONFIGURATION   -#-#-#-#-#-#-#-#-#-#-#
 #                                                                     #
 # m_override.so is too complex it describe here, see the wiki:        #
-# http://wiki.inspircd.org/Modules/override                           #
+# https://wiki.inspircd.org/Modules/2.0/override                      #
 
 #-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#
 # Oper levels module: Gives each oper a level and prevents actions
@@ -1410,7 +1410,7 @@
 #-#-#-#-#-#-#-#-#-#-#-#- SQL CONFIGURATION   -#-#-#-#-#-#-#-#-#-#-#-#-#
 #                                                                     #
 # m_pgsql.so is more complex than described here, see the wiki for    #
-# more: http://wiki.inspircd.org/Modules/pgsql                        #
+# more: https://wiki.inspircd.org/Modules/2.0/pgsql                   #
 #
 #<database module="pgsql" name="mydb" user="myuser" pass="mypass" host="localhost" id="my_database" ssl="no">
 
@@ -1599,6 +1599,11 @@
 # Layer via AUTHENTICATE. Note: You also need to have m_cap.so loaded
 # for SASL to work.
 #<module name="m_sasl.so">
+# Define the following to your services server name to improve security
+# by ensuring the SASL messages are only sent to the services server
+# and not to all connected servers. This prevents a rogue server from
+# capturing SASL messages.
+#<sasl target="services.mynetwork.com">
 
 #-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#
 # Secure list module: Prevent /LIST in the first minute of connection,
@@ -1612,7 +1617,7 @@
 # as shown below:                                                     #
 #<securehost exception="*@*.netsplit.de">
 #<securehost exception="*@*.ircdriven.com">
-#<securehost exception="*@*.irc-source.com">
+#<securehost exception="*@*.ircs.me">
 #                                                                     #
 # Define the following variable to change how long a user must wait   #
 # before issuing a LIST. If not defined, defaults to 60 seconds.      #
@@ -1703,7 +1708,7 @@
 # You can optionally let the user know that their command was blocked.
 #
 # You may also let SHUN affect opers (defaults to no).
-#<shun enabledcommands="PING PONG QUIT PART JOIN" notifyuser="yes" affectopers="no">
+#<shun enabledcommands="ADMIN PING PONG QUIT PART JOIN" notifyuser="yes" affectopers="no">
 
 #-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#
 # SSL channel mode module: Adds support for SSL-only channels via
@@ -1723,7 +1728,7 @@
 #-#-#-#-#-#-#-#-#-#-#-  GNUTLS CONFIGURATION   -#-#-#-#-#-#-#-#-#-#-#-#
 #                                                                     #
 # m_ssl_gnutls.so is too complex to describe here, see the wiki:      #
-# http://wiki.inspircd.org/Modules/ssl_gnutls                         #
+# https://wiki.inspircd.org/Modules/2.0/ssl_gnutls                    #
 
 #-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#
 # SSL info module: Allows users to retrieve information about other
@@ -1750,7 +1755,7 @@
 #-#-#-#-#-#-#-#-#-#-#- OPENSSL CONFIGURATION   -#-#-#-#-#-#-#-#-#-#-#-#
 #                                                                     #
 # m_ssl_openssl.so is too complex to describe here, see the wiki:     #
-# http://wiki.inspircd.org/Modules/ssl_openssl                        #
+# https://wiki.inspircd.org/Modules/2.0/ssl_openssl                   #
 
 #-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#
 # Strip color module: Adds channel mode +S that strips mIRC color
@@ -1769,7 +1774,7 @@
 # SQLite3 module: Allows other SQL modules to access SQLite3          #
 # databases through a unified API.                                    #
 # This module is in extras. Re-run configure with:                    #
-# ./configure --enable-extras=m_sqlite.cpp
+# ./configure --enable-extras=m_sqlite3.cpp
 # and run make install, then uncomment this module to enable it.      #
 #
 #<module name="m_sqlite3.so">
@@ -1777,29 +1782,23 @@
 #-#-#-#-#-#-#-#-#-#-#-#- SQL CONFIGURATION   -#-#-#-#-#-#-#-#-#-#-#-#-#
 #                                                                     #
 # m_sqlite.so is more complex than described here, see the wiki for   #
-# more: http://wiki.inspircd.org/Modules/sqlite3                      #
+# more: https://wiki.inspircd.org/Modules/2.0/sqlite3                 #
 #
 #<database module="sqlite" hostname="/full/path/to/database.db" id="anytext">
 
 #-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#
 # SQL authentication module: Allows IRCd connections to be tied into
 # a database table (for example a forum).
-# This module is in extras. Re-run configure with:
-# ./configure --enable-extras=m_sqlauth.cpp
-# and run make install, then uncomment this module to enable it.
 #
 #<module name="m_sqlauth.so">
 #
 #-#-#-#-#-#-#-#-#-#-#- SQLAUTH CONFIGURATION   -#-#-#-#-#-#-#-#-#-#-#-#
 #                                                                     #
 # m_sqlauth.so is too complex to describe here, see the wiki:         #
-# http://wiki.inspircd.org/Modules/sqlauth                            #
+# https://wiki.inspircd.org/Modules/2.0/sqlauth                       #
 
 #-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#
 # SQL oper module: Allows you to store oper credentials in an SQL table
-# This module is in extras. Re-run configure with:
-# ./configure --enable-extras=m_sqloper.cpp
-# and run make install, then uncomment this module to enable it.
 #
 #<module name="m_sqloper.so">
 #
@@ -1808,7 +1807,7 @@
 # dbid       - Database ID to use (see SQL modules).                  #
 # hash       - Hashing provider to use for password hashing.          #
 #                                                                     #
-# See also: http://wiki.inspircd.org/Modules/sqloper                  #
+# See also: https://wiki.inspircd.org/Modules/2.0/sqloper             #
 #                                                                     #
 #<sqloper dbid="1" hash="md5">
 
