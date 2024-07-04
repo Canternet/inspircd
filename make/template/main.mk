@@ -4,7 +4,7 @@
 #
 #   Copyright (C) 2018 Puck Meerburg <puck@puckipedia.com>
 #   Copyright (C) 2015 Attila Molnar <attilamolnar@hush.com>
-#   Copyright (C) 2012-2023 Sadie Powell <sadie@witchery.services>
+#   Copyright (C) 2012-2024 Sadie Powell <sadie@witchery.services>
 #   Copyright (C) 2012 Robby <robby@chatbelgie.be>
 #   Copyright (C) 2012 ChrisTX <xpipe@hotmail.de>
 #   Copyright (C) 2010 Dennis Friis <peavey@inspircd.org>
@@ -46,7 +46,7 @@ BUILDPATH ?= $(SOURCEPATH)/build/@COMPILER_NAME@-@COMPILER_VERSION@
 SOCKETENGINE = @SOCKETENGINE@
 CORECXXFLAGS = -fPIC -fvisibility=hidden -fvisibility-inlines-hidden -pipe -I"$(SOURCEPATH)/include" -isystem "$(SOURCEPATH)/vendor" -Wall -Wextra -Wfatal-errors -Woverloaded-virtual -Wpedantic -Wno-format-nonliteral -Wno-unused-parameter -DFMT_SHARED
 LDLIBS = @COMPILER_EXTRA_LDLIBS@
-CORELDFLAGS = -fPIE -L.
+CORELDFLAGS = -fPIE -pie -L.
 PICLDFLAGS  = -fPIC -shared
 
 DESTDIR := $(if $(DESTDIR),$(DESTDIR),"@DESTDIR|@")

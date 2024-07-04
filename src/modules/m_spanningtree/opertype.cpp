@@ -1,7 +1,7 @@
 /*
  * InspIRCd -- Internet Relay Chat Daemon
  *
- *   Copyright (C) 2018, 2020-2023 Sadie Powell <sadie@witchery.services>
+ *   Copyright (C) 2018, 2020-2024 Sadie Powell <sadie@witchery.services>
  *   Copyright (C) 2013-2014 Attila Molnar <attilamolnar@hush.com>
  *   Copyright (C) 2012 Robby <robby@chatbelgie.be>
  *   Copyright (C) 2009-2010 Daniel De Graaf <danieldg@inspircd.org>
@@ -89,7 +89,7 @@ CmdResult CommandOpertype::HandleRemote(RemoteUser* u, CommandBase::Params& para
 	// the oper details we instead just assume they have access to everything
 	// as was the default until 1206.
 	bool automatic = params.GetTags().find("~automatic") != params.GetTags().end();
-	u->OperLogin(std::make_shared<RemoteOperAccount>(params.back(), params.GetTags()), true, automatic);
+	u->OperLogin(std::make_shared<RemoteOperAccount>(params.back(), params.GetTags()), automatic, true);
 
 	if (Utils->quiet_bursts)
 	{
